@@ -3,12 +3,11 @@ import os
 from datetime import datetime
 from src.zenfu_lawfirm.collaboration.agent_network import LegalAgentNetwork
 from src.zenfu_lawfirm.collaboration.workflow import create_workflow, AgentState
-from src.zenfu_lawfirm.ethics.bias_detector import BiasDetector
-from src.zenfu_lawfirm.ethics.transparency import TransparencyHandler
-from src.zenfu_lawfirm.ethics.accountability import AccountabilityTracker
+from models.bias_detection.bias_detection import BiasDetector
 from src.zenfu_lawfirm.tools.policy_monitor import PolicyMonitor
 from src.zenfu_lawfirm.tools.document_tool import DocumentTool
 from src.zenfu_lawfirm.data_processing.data_curator import DataCurator
+from models.legal_analysis.legal_analysis import LegalAnalyzer
 
 # Page configuration
 st.set_page_config(
@@ -83,8 +82,7 @@ def load_components():
     return {
         'agent_network': initialize_agents(llm),
         'bias_detector': BiasDetector(),
-        'transparency_handler': TransparencyHandler(),
-        'accountability_tracker': AccountabilityTracker(),
+        'legal_analyzer': LegalAnalyzer(),
         'policy_monitor': PolicyMonitor(),
         'document_tool': DocumentTool(),
         'data_curator': DataCurator()
@@ -165,65 +163,57 @@ if page == "Case Analysis":
     
     if st.button("Analyze Case"):
         with st.spinner("Analyzing case with legal experts..."):
-            # Process the case with agent network
-            if st.session_state.current_case and case_description:
-                # Initialize agent state
-                initial_state = AgentState(
-                    query=case_description,
-                    primary_agent=primary_agent,
-                    consultations={},
-                    final_response=""
-                )
-                
-                if include_ethics_review:
-                    initial_state["ethics_review"] = True
-                
-                # Run the workflow
-                final_state = st.session_state.workflow.run(initial_state)
-                st.session_state.analysis_results = final_state
-                
-                # Display results in organized tabs
-                tab1, tab2, tab3 = st.tabs(["Primary Analysis", "Ethics Review", "Final Opinion"])
-                
-                with tab1:
-                    st.subheader(f"Analysis by {components['agent_network'].agents[primary_agent]['role']}")
-                    st.write(final_state["consultations"][primary_agent])
-                
-                with tab2:
-                    if include_ethics_review and "ethics_reviewer" in final_state["consultations"]:
-                        st.subheader("Ethics Review")
-                        st.write(final_state["consultations"]["ethics_reviewer"])
-                        
-                        # Display any bias warnings or ethical considerations
-                        if components['bias_detector'].has_bias_concerns(final_state["consultations"][primary_agent]):
-                            st.warning("⚠️ Potential bias detected. See ethics review for details.")
-                
-                with tab3:
-                    st.subheader("Synthesized Legal Opinion")
-                    st.write(final_state["final_response"])
+            try:
+                # Process the case with agent network
+                if st.session_state.current_case and case_description:
+                    # Perform legal analysis
+                    legal_analysis = components['legal_analyzer'].analyze_case(case_description)
                     
-                    # Add accountability tracking
-                    if st.session_state.current_case:
-                        components['accountability_tracker'].log_decision(
-                            st.session_state.current_case['id'],
-                            {
-                                "primary_agent": primary_agent,
-                                "ethics_review": include_ethics_review,
-                                "case_category": case_category,
-                                "timestamp": datetime.now().isoformat()
-                            }
-                        )
+                    # Initialize agent state
+                    initial_state = AgentState(
+                        query=case_description,
+                        primary_agent=primary_agent,
+                        consultations={},
+                        final_response=""
+                    )
+                    
+                    if include_ethics_review:
+                        initial_state["ethics_review"] = True
+                        # Perform bias detection
+                        bias_analysis = components['bias_detector'].detect_bias(case_description)
+                    
+                    # Run the workflow
+                    final_state = st.session_state.workflow.run(initial_state)
+                    st.session_state.analysis_results = final_state
+                    
+                    # Display results in organized tabs
+                    tab1, tab2, tab3 = st.tabs(["Primary Analysis", "Ethics Review", "Final Opinion"])
+                    
+                    with tab1:
+                        st.subheader(f"Analysis by {components['agent_network'].agents[primary_agent]['role']}")
+                        st.write(legal_analysis['analysis'])
+                        st.write(final_state["consultations"][primary_agent])
+                    
+                    with tab2:
+                        if include_ethics_review:
+                            st.subheader("Ethics Review")
+                            st.write(final_state["consultations"].get("ethics_reviewer", "No ethics review available"))
+                            
+                            # Display bias analysis results
+                            if bias_analysis.get('bias_detected'):
+                                st.warning("⚠️ Potential bias detected. See details below.")
+                                st.write(bias_analysis['recommendations'])
+                    
+                    with tab3:
+                        st.subheader("Synthesized Legal Opinion")
+                        st.write(final_state["final_response"])
+                        
+                        # Add recommendations
+                        st.subheader("Recommendations")
+                        st.write(legal_analysis['recommendations'])
                 
-                # Bias check
-                bias_report = components['bias_detector'].analyze_decision(analysis)
-                
-                # Display results
-                st.subheader("Analysis Results")
-                st.json(analysis)
-                
-                # Show bias analysis
-                st.subheader("Bias Analysis")
-                st.write(bias_report)
+            except Exception as e:
+                st.error(f"An error occurred during analysis: {str(e)}")
 
 elif page == "Document Review":
     st.header("Document Review")
@@ -238,8 +228,11 @@ elif page == "Document Review":
     if uploaded_files:
         for doc in uploaded_files:
             st.write(f"Processing: {doc.name}")
-            doc_analysis = components['document_tool'].analyze_document(doc.read())
-            st.json(doc_analysis)
+            try:
+                doc_analysis = components['document_tool'].analyze_document(doc.read())
+                st.json(doc_analysis)
+            except Exception as e:
+                st.error(f"Error processing document {doc.name}: {str(e)}")
 
 elif page == "Policy Monitor":
     st.header("Policy Monitor")
@@ -247,11 +240,14 @@ elif page == "Policy Monitor":
     # Policy monitoring interface
     if st.button("Check Recent Policy Changes"):
         with st.spinner("Monitoring policy changes..."):
-            updates = components['policy_monitor'].monitor_policy_changes()
-            
-            st.subheader("Recent Policy Updates")
-            for update in updates:
-                st.write(f"- {update}")
+            try:
+                updates = components['policy_monitor'].monitor_policy_changes()
+                
+                st.subheader("Recent Policy Updates")
+                for update in updates:
+                    st.write(f"- {update}")
+            except Exception as e:
+                st.error(f"Error checking policy changes: {str(e)}")
     
     # Policy alert settings
     st.subheader("Alert Settings")
@@ -264,32 +260,25 @@ elif page == "Ethics Dashboard":
     st.header("Ethics Dashboard")
     
     # Ethics monitoring tabs
-    tab1, tab2, tab3 = st.tabs(["Bias Analysis", "Transparency", "Accountability"])
+    tab1, tab2 = st.tabs(["Bias Analysis", "Case History"])
     
     with tab1:
         st.subheader("Bias Detection Results")
         if st.session_state.analysis_results:
-            bias_report = components['bias_detector'].analyze_decision(
-                st.session_state.analysis_results
-            )
-            st.write(bias_report)
+            try:
+                bias_analysis = components['bias_detector'].detect_bias(
+                    st.session_state.analysis_results["final_response"]
+                )
+                st.write(bias_analysis)
+            except Exception as e:
+                st.error(f"Error performing bias analysis: {str(e)}")
     
     with tab2:
-        st.subheader("Decision Transparency")
-        if st.session_state.current_case:
-            explanation = components['transparency_handler'].explain_decision(
-                st.session_state.current_case,
-                st.session_state.analysis_results
-            )
-            st.write(explanation)
-    
-    with tab3:
-        st.subheader("Accountability Tracking")
-        if st.session_state.current_case:
-            report = components['accountability_tracker'].generate_accountability_report(
-                st.session_state.current_case['id']
-            )
-            st.write(report)
+        st.subheader("Recent Case History")
+        for case in st.session_state.case_history:
+            st.write(f"Case ID: {case['id']}")
+            st.write(f"Status: {case.get('status', 'Unknown')}")
+            st.write("---")
 
 # Footer
 st.markdown("---")
