@@ -1,0 +1,27 @@
+# Environment
+.env
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Session data
+session_data/
+
+# Legal documents
+legal_docs/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+accountability_log.txt
+
+# Models and data
+models/
+training_data/

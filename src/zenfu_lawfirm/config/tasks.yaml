@@ -1,0 +1,24 @@
+handle_customer_query:
+  description: >
+    Listen to the customer's question and identify the relevant legal area.
+    Assign the query to the specialized lawyer best suited to address the issue.
+  expected_output: >
+    A task delegation to the appropriate lawyer agent.
+
+civil_rights_review:
+  description: >
+    Review potential civil rights violations and provide comprehensive analysis.
+  expected_output: >
+    A detailed report on civil rights implications and recommended actions.
+
+ethics_review:
+  description: >
+    Monitor for potential biases and ensure ethical handling of the case.
+  expected_output: >
+    An ethics report including bias analysis and transparency recommendations.
+
+policy_monitoring:
+  description: >
+    Track relevant policy changes and assess their impact on current cases.
+  expected_output: >
+    A policy update report with impact analysis.
