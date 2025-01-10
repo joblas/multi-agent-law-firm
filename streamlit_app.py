@@ -3,11 +3,11 @@ import os
 from datetime import datetime
 from src.zenfu_lawfirm.collaboration.agent_network import LegalAgentNetwork
 from src.zenfu_lawfirm.collaboration.workflow import create_workflow, AgentState
-from models.bias_detection.bias_detection import BiasDetector
+from src.zenfu_lawfirm.ethics.bias_detector import BiasDetector
 from src.zenfu_lawfirm.tools.policy_monitor import PolicyMonitor
-from src.zenfu_lawfirm.tools.document_tool import DocumentTool
 from src.zenfu_lawfirm.data_processing.data_curator import DataCurator
-from models.legal_analysis.legal_analysis import LegalAnalyzer
+from src.zenfu_lawfirm.tools.legal_tool_manager import LegalToolManager
+from src.zenfu_lawfirm.tools.document_tool import LegalDocSearchTool
 
 # Page configuration
 st.set_page_config(
@@ -82,9 +82,9 @@ def load_components():
     return {
         'agent_network': initialize_agents(llm),
         'bias_detector': BiasDetector(),
-        'legal_analyzer': LegalAnalyzer(),
+        'legal_tool_manager': LegalToolManager(docs_path='legal_docs'),
         'policy_monitor': PolicyMonitor(),
-        'document_tool': DocumentTool(),
+        'document_tool': LegalDocSearchTool(docs_path='legal_docs'),
         'data_curator': DataCurator()
     }
 
@@ -167,7 +167,7 @@ if page == "Case Analysis":
                 # Process the case with agent network
                 if st.session_state.current_case and case_description:
                     # Perform legal analysis
-                    legal_analysis = components['legal_analyzer'].analyze_case(case_description)
+                    legal_analysis = components['legal_tool_manager'].legal_analyzer.analyze_case(case_description)
                     
                     # Initialize agent state
                     initial_state = AgentState(
@@ -229,8 +229,33 @@ elif page == "Document Review":
         for doc in uploaded_files:
             st.write(f"Processing: {doc.name}")
             try:
-                doc_analysis = components['document_tool'].analyze_document(doc.read())
-                st.json(doc_analysis)
+                # Get file type from name
+                file_type = doc.name.split('.')[-1].lower()
+                
+                # Read document content
+                content = doc.read()
+                
+                # Analyze document
+                doc_analysis = components['document_tool'].analyze_document(content)
+                
+                if doc_analysis['status'] == 'success':
+                    st.success(f"Successfully processed {doc.name}")
+                    
+                    # Display analysis results in an organized way
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Word Count", doc_analysis['word_count'])
+                        st.text(f"File Type: {file_type}")
+                    with col2:
+                        st.text("Date Analyzed:")
+                        st.text(doc_analysis['date_analyzed'])
+                    
+                    # Display document summary in expandable section
+                    with st.expander("Document Summary"):
+                        st.write(doc_analysis['summary'])
+                else:
+                    st.error(f"Error analyzing {doc.name}: {doc_analysis['error']}")
+                    
             except Exception as e:
                 st.error(f"Error processing document {doc.name}: {str(e)}")
 

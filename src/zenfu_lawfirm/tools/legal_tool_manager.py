@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional
 import asyncio
 import logging
-from .document_tool import LegalDocSearchTool
+from .document_tool import DocumentTool
 from .policy_monitor import PolicyMonitor
 
 class LegalToolManager:
@@ -14,7 +14,7 @@ class LegalToolManager:
         Args:
             docs_path: Path to the directory containing legal documents
         """
-        self.doc_tool = LegalDocSearchTool(docs_path)
+        self.doc_tool = DocumentTool(docs_path)
         self.policy_monitor = PolicyMonitor()
         
         # Set up logging

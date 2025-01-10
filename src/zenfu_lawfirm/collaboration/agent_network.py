@@ -3,7 +3,7 @@ from typing import Dict, List
 from langchain.agents import AgentExecutor, initialize_agent, Tool
 from langchain.agents import AgentType
 from langchain.chains import LLMChain
-from langchain.graphs import NetworkxEntityGraph
+from langchain_community.graphs import NetworkxEntityGraph
 from langchain.schema import SystemMessage, HumanMessage
 
 class LegalAgentNetwork:
